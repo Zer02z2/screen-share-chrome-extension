@@ -63,12 +63,24 @@ const init = async () => {
     console.log("receive call")
     call.answer(stream)
 
-    call.on("stream", (userVideoStream) => {})
+    call.on("stream", (userVideoStream) => {
+      if (!currentPeers.find((peer) => peer.id === call.peer)) {
+        createPeer(call.peer)
+      }
+      const peerUser = currentPeers.find((peer) => peer.id === call.peer)
+      if (!peerUser) return
+      peerUser.video = createVideo(userVideoStream)
+    })
   })
   myPeer.on("connection", (conn) => {
     conn.on("open", () => {
       conn.on("data", (data) => {
-        console.log(data)
+        if (!currentPeers.find((peer) => peer.id === conn.peer)) {
+          createPeer(conn.peer)
+        }
+        const peerUser = currentPeers.find((peer) => peer.id === conn.peer)
+        if (!peerUser) return
+        updatePeerData(peerUser, data)
       })
       window.addEventListener("mousemove", (event) => {
         conn.send({
@@ -84,17 +96,7 @@ const init = async () => {
   socket.on("user-connected", (userId) => {
     const call = myPeer.call(userId, stream)
     const conn = myPeer.connect(userId)
-    const peerUser: PeerUser = {
-      id: userId,
-      canvas: createCanvas(),
-      mouseX: 0,
-      mouseY: 0,
-      videoW: 0,
-      videoH: 0,
-    }
-    if (!currentPeers.find((peer) => peer.id === userId)) {
-      currentPeers.push(peerUser)
-    }
+    const peerUser = createPeer(userId)
     call.on("stream", (userVideoStream) => {
       peerUser.video = createVideo(userVideoStream)
     })
@@ -102,17 +104,7 @@ const init = async () => {
     conn.on("open", () => {
       console.log("data open")
       conn.on("data", (data) => {
-        console.log(data)
-        const peerData = data as {
-          mouseX: number
-          mouseY: number
-          videoW: number
-          videoH: number
-        }
-        peerUser.mouseX = peerData.mouseX
-        peerUser.mouseY = peerData.mouseY
-        peerUser.videoW = peerData.videoW
-        peerUser.videoH = peerData.videoH
+        updatePeerData(peerUser, data)
       })
       document.addEventListener("mousemove", (event) => {
         conn.send({
@@ -131,7 +123,10 @@ const animate = () => {
     const video = peer.video
     const ctx = canvas.getContext("2d")
     if (!(ctx && video)) return
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
     const mouseX = (canvas.width * peer.mouseX) / peer.videoW
     const mouseY = (canvas.height * peer.mouseY) / peer.videoH
     const res = 5
@@ -139,11 +134,39 @@ const animate = () => {
     for (let i = 0; i < canvas.width; i += res) {
       for (let j = 0; j < canvas.height; j += res) {
         const dist = Math.sqrt((mouseX - i) ** 2 + (mouseY - j) ** 2)
-        if (dist > 50) ctx.clearRect(i, j, res, res)
+        if (dist > 100) ctx.clearRect(i, j, res, res)
       }
     }
   })
   requestAnimationFrame(animate)
+}
+
+const createPeer = (id: string) => {
+  const peerUser: PeerUser = {
+    id: id,
+    canvas: createCanvas(),
+    mouseX: 0,
+    mouseY: 0,
+    videoW: 0,
+    videoH: 0,
+  }
+  if (!currentPeers.find((peer) => peer.id === id)) {
+    currentPeers.push(peerUser)
+  }
+  return peerUser
+}
+
+const updatePeerData = (peerUser: PeerUser, data: unknown) => {
+  const peerData = data as {
+    mouseX: number
+    mouseY: number
+    videoW: number
+    videoH: number
+  }
+  peerUser.mouseX = peerData.mouseX
+  peerUser.mouseY = peerData.mouseY
+  peerUser.videoW = peerData.videoW
+  peerUser.videoH = peerData.videoH
 }
 
 init()
