@@ -18,7 +18,7 @@ interface PeerUser {
 let currentPeers: PeerUser[] = []
 
 const roomId = 1
-const dev = true
+const dev = false
 const socketUrl = `${
   dev
     ? "http://localhost:3001/screenShare"
@@ -130,18 +130,43 @@ const animate = () => {
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-    if (peer.fullScreen) {
-      const mouseX = (canvas.width * peer.mouseX) / peer.videoW
-      const mouseY = (canvas.height * peer.mouseY) / peer.videoH
-      const res = 5
 
-      for (let i = 0; i < canvas.width; i += res) {
-        for (let j = 0; j < canvas.height; j += res) {
-          const dist = Math.sqrt((mouseX - i) ** 2 + (mouseY - j) ** 2)
-          if (dist > 200) ctx.clearRect(i, j, res, res)
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const data = imageData.data
+    const mouseX = (canvas.width * peer.mouseX) / peer.videoW
+    const mouseY = (canvas.height * peer.mouseY) / peer.videoH
+    for (let x = 0; x < canvas.width; x++) {
+      for (let y = 0; y < canvas.height; y++) {
+        const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2)
+        const innerRange = 200
+        const outerRange = 250
+        if (dist >= innerRange && dist < outerRange) {
+          const alpha = Math.floor(
+            (1 - (dist - innerRange) / (outerRange - innerRange)) * 255
+          )
+          const index = (y * canvas.width + x) * 4
+          data[index + 3] = alpha
+        } else if (dist >= outerRange) {
+          const index = (y * canvas.width + x) * 4
+          data[index + 3] = 0
         }
       }
     }
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.putImageData(imageData, 0, 0)
+
+    // if (peer.fullScreen) {
+    //   const mouseX = (canvas.width * peer.mouseX) / peer.videoW
+    //   const mouseY = (canvas.height * peer.mouseY) / peer.videoH
+    //   const res = 5
+
+    //   for (let i = 0; i < canvas.width; i += res) {
+    //     for (let j = 0; j < canvas.height; j += res) {
+    //       const dist = Math.sqrt((mouseX - i) ** 2 + (mouseY - j) ** 2)
+    //       if (dist > 200) ctx.clearRect(i, j, res, res)
+    //     }
+    //   }
+    // }
   })
   requestAnimationFrame(animate)
 }
