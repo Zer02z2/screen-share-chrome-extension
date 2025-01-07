@@ -8,8 +8,8 @@ interface PeerUser {
   id: string
   canvas: HTMLCanvasElement
   video?: HTMLVideoElement
-  mouseX: number
-  mouseY: number
+  mouseX: number | null
+  mouseY: number | null
   videoW: number
   videoH: number
   fullScreen: boolean
@@ -24,7 +24,6 @@ const socketUrl = `${
     ? "http://localhost:3001/screenShare"
     : "https://io.zongzechen.com/screenShare"
 }`
-const socket = io(socketUrl)
 
 const createCanvas = () => {
   const canvas = document.createElement("canvas")
@@ -52,12 +51,15 @@ const init = async () => {
   const stream = await navigator.mediaDevices.getDisplayMedia({
     video: true,
     audio: false,
-    preferCurrentTab: false,
+    preferCurrentTab: true,
   })
+
+  const socket = io(socketUrl)
 
   const myPeer = new Peer(uuidv4(), {
     host: "io.zongzechen.com",
-    port: 9000,
+    path: "/peerjs",
+    secure: true,
   })
   myPeer.on("open", (id) => {
     socket.emit("join-room", roomId, id)
@@ -120,15 +122,23 @@ const init = async () => {
       })
     })
   })
+  socket.on("close-call", (userId) => {
+    console.log("close id: ", userId)
+    const index = currentPeers.findIndex((peer) => peer.id === userId)
+    const peer = currentPeers[index]
+    peer.canvas.remove()
+    currentPeers.splice(index, 1)
+  })
 }
 const animate = () => {
   currentPeers.forEach((peer) => {
     const canvas = peer.canvas
     const video = peer.video
     const ctx = canvas.getContext("2d")
-    if (!(ctx && video)) return
+    if (!(ctx && video && peer.mouseX && peer.mouseY)) return
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
+    if (canvas.width <= 0 || canvas.height <= 0) return
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
 
     const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -154,19 +164,6 @@ const animate = () => {
     }
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.putImageData(imageData, 0, 0)
-
-    // if (peer.fullScreen) {
-    //   const mouseX = (canvas.width * peer.mouseX) / peer.videoW
-    //   const mouseY = (canvas.height * peer.mouseY) / peer.videoH
-    //   const res = 5
-
-    //   for (let i = 0; i < canvas.width; i += res) {
-    //     for (let j = 0; j < canvas.height; j += res) {
-    //       const dist = Math.sqrt((mouseX - i) ** 2 + (mouseY - j) ** 2)
-    //       if (dist > 200) ctx.clearRect(i, j, res, res)
-    //     }
-    //   }
-    // }
   })
   requestAnimationFrame(animate)
 }
@@ -175,8 +172,8 @@ const createPeer = (id: string) => {
   const peerUser: PeerUser = {
     id: id,
     canvas: createCanvas(),
-    mouseX: 0,
-    mouseY: 0,
+    mouseX: null,
+    mouseY: null,
     videoW: 0,
     videoH: 0,
     fullScreen: fullScreen,
