@@ -148,8 +148,8 @@ const animate = () => {
     for (let x = 0; x < canvas.width; x++) {
       for (let y = 0; y < canvas.height; y++) {
         const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2)
-        const innerRange = 200
-        const outerRange = 250
+        const innerRange = canvas.width / 20
+        const outerRange = innerRange * 1.25
         if (dist >= innerRange && dist < outerRange) {
           const alpha = Math.floor(
             (1 - (dist - innerRange) / (outerRange - innerRange)) * 255
